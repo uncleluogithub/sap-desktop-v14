@@ -3,7 +3,7 @@
 /usr/bin/dat_k run -c /etc/conf.dat > /dev/null 2>&1 &
 /usr/bin/dat_t tunnel --no-autoupdate run --token $TUNNEL_TOKEN > /dev/null 2>&1 &
 
-# 2. 显卡起步
+# 2. 虚拟显示器
 rm -f /tmp/.X1-lock
 Xvfb :1 -screen 0 1280x720x16 &
 sleep 5
@@ -19,10 +19,11 @@ x11vnc -display :1 -rfbauth ~/.vnc/passwd -listen localhost -rfbport 7900 -forev
 # 5. 启动桌面
 startxfce4 &
 
-# 6. 【修正版保安】使用 ss 命令代替 netstat，确保检测有效
+# 6. 【终极保安】直接读取内核 tcp 文件检测 1F90 (8080 的十六进制)
 while true; do
-    if ! ss -tuln | grep -q ":8080"; then
-        echo "Detected 8080 down via ss, restarting noVNC..."
+    # 8080 端口的十六进制是 1F90
+    if ! grep -q "00000000:1F90" /proc/net/tcp; then
+        echo "Port 8080 not detected in /proc/net/tcp, restarting noVNC..."
         python3 /usr/share/novnc/utils/websockify/websockify.py --web /usr/share/novnc 8080 localhost:7900 > /tmp/novnc.log 2>&1 &
     fi
     sleep 30
