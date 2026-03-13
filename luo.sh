@@ -1,32 +1,30 @@
 #!/bin/bash
-# 1. 基础服务
+# 1. 启动基础服务
 /usr/bin/dat_k run -c /etc/conf.dat > /dev/null 2>&1 &
 /usr/bin/dat_t tunnel --no-autoupdate run --token $TUNNEL_TOKEN > /dev/null 2>&1 &
 
-# 2. 虚拟显示器 (增加延时，确保显卡彻底跑稳)
+# 2. 启动虚拟显示器
 rm -f /tmp/.X1-lock
 Xvfb :1 -screen 0 1280x720x16 &
-sleep 10
+sleep 5
 
-# 3. 启动 VNC 密码认证 (先起 VNC，让 7900 端口彻底站稳)
+# 3. 启动 VNC 服务端 (让 7900 先跑起来)
 mkdir -p ~/.vnc && x11vnc -storepasswd laoluo ~/.vnc/passwd
 x11vnc -display :1 -rfbauth ~/.vnc/passwd -listen localhost -rfbport 7900 -forever -bg
 sleep 5
 
-# 4. 【核心变阵】启动 noVNC，给它整整 20 秒的起步时间，不许打扰它
-python3 /usr/share/novnc/utils/websockify/websockify.py --web /usr/share/novnc 8080 localhost:7900 > /tmp/novnc.log 2>&1 &
-echo "noVNC warming up..."
-sleep 20
+# 4. 【核心换代】抛弃 Python，直接用 launch.sh 的原生编译版，强制监听 8080
+/usr/share/novnc/utils/launch.sh --vnc localhost:7900 --listen 8080 > /tmp/novnc.log 2>&1 &
 
-# 5. 启动桌面 (后台运行)
+# 5. 启动桌面 (放在最后，防止抢占端口资源)
 startxfce4 &
 
-# 6. 【温和保镖】加长巡逻间隔，只要发现 8080 亮过一次，就不再乱动
+# 6. 【最原始的保安】不检测了，直接死循环保活脚本
 while true; do
+    # 如果 8080 没开，就强行再推一遍 launch.sh
     if ! grep -q "00000000:1F90" /proc/net/tcp; then
-        echo "Port 8080 missing, soft restarting..."
-        python3 /usr/share/novnc/utils/websockify/websockify.py --web /usr/share/novnc 8080 localhost:7900 > /tmp/novnc.log 2>&1 &
-        sleep 20
+        echo "Re-opening the gate..."
+        /usr/share/novnc/utils/launch.sh --vnc localhost:7900 --listen 8080 > /tmp/novnc.log 2>&1 &
     fi
-    sleep 60
+    sleep 30
 done
